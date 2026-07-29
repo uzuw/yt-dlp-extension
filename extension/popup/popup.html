@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width">
+  <title>ytdlp Downloader</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <div id="header">
+      <span id="title">ytdlp Downloader</span>
+      <span id="site-badge" class="hidden"></span>
+      <span id="url-display"></span>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" class="hidden">
+      <div class="spinner"></div>
+      <span>Fetching available formats...</span>
+    </div>
+
+    <!-- Error -->
+    <div id="error" class="hidden">
+      <div class="error-icon">!</div>
+      <div id="error-text"></div>
+      <button id="retry-btn" class="btn-link">Retry</button>
+    </div>
+
+    <!-- Format list -->
+    <div id="formats-panel" class="hidden">
+      <div id="format-list"></div>
+      <button id="download-btn" class="btn-primary" disabled>Download Selected</button>
+    </div>
+
+    <!-- Download progress -->
+    <div id="progress-panel" class="hidden">
+      <div class="section-label">Downloading...</div>
+      <div class="progress-bar-bg">
+        <div id="progress-fill" class="progress-fill"></div>
+      </div>
+      <div id="progress-stats">
+        <span id="progress-pct">0%</span>
+        <span id="progress-speed"></span>
+        <span id="progress-eta"></span>
+      </div>
+      <div id="progress-text">Starting...</div>
+      <button id="cancel-btn" class="btn-secondary">Cancel</button>
+      <button id="done-btn" class="btn-primary hidden">Done</button>
+      <button id="open-btn" class="btn-secondary hidden">Open Downloads Folder</button>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

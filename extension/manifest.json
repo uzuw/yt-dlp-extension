@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "ytdlp Downloader",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu2XNmyKtWVgkCOBOk2QMG8iqGufgVVd3H961gZvIJqMLh4QWjTtWqZFVYwboj6/613g178zeZZOYznPd6kfgiARqb1cPpgAWC8Av75qH2Su+/jS+mxMJwYSKBDv7VJPHerm/YvlAlizIuInfluS+Vawbwb8LZeBtmTFm7rWkhwKhyVsqWy25W0NHR6gQhmXMgXz866A+EFgbY3hKd3unebwhLNiGCHv8Ajind+R4BbdKH28ezIS1R1MBk4TVmSa+EzEgIurxlxRNG63im9/PzmvwOV+8hWIHbmiQnibec7B6PhyOHTKNNleE1M2JZaObcUsTJdV0aTIT1e3rWv9u1wIDAQAB",
+  "version": "1.0.0",
+  "description": "Detect current page URL and download media via yt-dlp. Supports YouTube, Facebook, Instagram, TikTok, and 1000+ sites.",
+  "permissions": [
+    "activeTab",
+    "nativeMessaging",
+    "storage",
+    "notifications"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "ytdlp Downloader",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background/service_worker.js"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

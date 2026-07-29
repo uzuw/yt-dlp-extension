@@ -1,0 +1,9 @@
+{
+  "name": "com.ytdlp.extension",
+  "description": "Native messaging host for ytdlp Chrome extension",
+  "path": "/home/uzu/code/vibecoding/ytdlp-extension/native-host/native_host.py",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://jhcahmjmlekpjjedlmdcillgdcphhkif/"
+  ]
+}
