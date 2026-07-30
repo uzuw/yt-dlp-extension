@@ -65,7 +65,7 @@ function connectNative() {
 function showNotification(title, message) {
   chrome.notifications.create({
     type: "basic",
-    iconUrl: chrome.runtime.getURL("icons/icon128.png"),
+    iconUrl: chrome.runtime.getURL("icons/icon.png"),
     title: title || "ytdlp Downloader",
     message: message || "Download complete",
     priority: 2,
