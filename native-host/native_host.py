@@ -4,7 +4,8 @@ ytdlp-extension Native Messaging Host.
 Protocol: 4-byte LE length prefix + JSON message on stdin, same on stdout.
 Commands: list_formats, download, cancel. All logging to stderr.
 """
-import json, os, re, struct, subprocess, sys, signal, shutil, threading
+import json, os, re, struct, subprocess, sys, signal, shutil, threading, time
+import urllib.request
 
 OUTPUT_DIR = os.path.expanduser("~/Downloads/ytdlp-extensions")
 YTDLP_BIN = "yt-dlp"
@@ -43,6 +44,82 @@ def _find_ytdlp() -> str:
     raise FileNotFoundError("yt-dlp not found on PATH")
 
 
+# ---- yt-dlp self-update (YouTube routinely breaks older releases) ----
+
+UPDATE_STATE_PATH = os.path.expanduser("~/.cache/ytdlp-extension/update-state.json")
+UPDATE_COOLDOWN_SECONDS = 6 * 3600  # max one auto-update attempt per 6h
+_update_lock = threading.Lock()
+
+
+def _current_ytdlp_version() -> str:
+    """Version as seen on disk (fresh subprocess, avoids module import caching)."""
+    try:
+        out = subprocess.run([_find_ytdlp(), "--version"], capture_output=True, text=True, timeout=30)
+        return (out.stdout or "").strip().splitlines()[0] if out.returncode == 0 else "0.0"
+    except Exception:
+        return "0.0"
+
+
+def _latest_ytdlp_version() -> str:
+    req = urllib.request.Request(
+        "https://pypi.org/pypi/yt-dlp/json",
+        headers={"User-Agent": "ytdlp-extension/" + _current_ytdlp_version()},
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.load(resp)["info"]["version"]
+
+
+def _version_tuple(v: str):
+    return tuple(int(x) for x in re.findall(r"\d+", v))
+
+
+def _update_cooldown_ok() -> bool:
+    try:
+        with open(UPDATE_STATE_PATH) as f:
+            last = json.load(f).get("last_attempt", 0)
+    except Exception:
+        last = 0
+    return time.time() - last > UPDATE_COOLDOWN_SECONDS
+
+
+def _mark_update_attempt():
+    try:
+        os.makedirs(os.path.dirname(UPDATE_STATE_PATH), exist_ok=True)
+        with open(UPDATE_STATE_PATH, "w") as f:
+            json.dump({"last_attempt": time.time()}, f)
+    except Exception as e:
+        log("Could not persist update state: %s" % e)
+
+
+def update_ytdlp_if_outdated(force: bool = False) -> bool:
+    """Upgrade yt-dlp when a newer release exists. Cooldown-gated. Returns True
+    only if a newer version was actually installed."""
+    with _update_lock:
+        if not force and not _update_cooldown_ok():
+            return False
+        _mark_update_attempt()
+        try:
+            latest = _latest_ytdlp_version()
+        except Exception as e:
+            log("Latest-version check failed: %s" % e)
+            return False
+        current = _current_ytdlp_version()
+        if _version_tuple(current) >= _version_tuple(latest):
+            return False
+        log("Updating yt-dlp %s -> %s" % (current, latest))
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--user", "--break-system-packages",
+                 "--no-cache-dir", "-q", "-U", "yt-dlp"],
+                capture_output=True, text=True, timeout=240,
+            )
+            log("pip exit=%s %s" % (result.returncode, (result.stderr or "").strip()[-200:]))
+        except Exception as e:
+            log("yt-dlp update failed: %s" % e)
+            return False
+        return result.returncode == 0 and _version_tuple(_current_ytdlp_version()) >= _version_tuple(latest)
+
+
 def handle_list_formats(url: str):
     if not url or not (url.startswith("http://") or url.startswith("https://")):
         send_message({"type": "error", "message": "Invalid or missing URL"})
@@ -64,7 +141,9 @@ def handle_list_formats(url: str):
 
     if result.returncode != 0:
         msg = (result.stderr or result.stdout or "").strip()[:2000]
-        send_message({"type": "error", "message": msg or f"Exit code {result.returncode}"})
+        msg = msg or f"Exit code {result.returncode}"
+        msg += "\nHint: stale yt-dlp breaks extraction too - run ./scripts/update-ytdlp.sh"
+        send_message({"type": "error", "message": msg})
         return
 
     try:
@@ -130,13 +209,10 @@ def handle_list_formats(url: str):
     })
 
 
-def _do_download(url: str, format_id: str):
-    """Runs in a background thread. Reads yt-dlp output and sends progress."""
+def _run_one_download(fid: str, template: str, url: str):
+    """Spawn yt-dlp, stream output to the host, wait. Returns (rc, last_error);
+    rc is None when the process could not be spawned (error already sent)."""
     global _download_proc
-    fid = format_id or "bv*+ba/b"
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    template = os.path.join(OUTPUT_DIR, "%(title)s.%(ext)s")
-
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
 
@@ -148,16 +224,19 @@ def _do_download(url: str, format_id: str):
         )
     except FileNotFoundError as e:
         send_message({"type": "error", "message": str(e)})
-        return
+        return None, str(e)
 
     with _download_lock:
         _download_proc = proc
 
+    last_error = None
     assert proc.stdout is not None
     for line in proc.stdout:
         line = line.rstrip("\n")
         if not line:
             continue
+        if "ERROR:" in line:
+            last_error = line.strip()
         if "[download] Destination:" in line:
             fpath = line.split("Destination:", 1)[1].strip()
             send_message({"type": "filepath", "path": fpath})
@@ -184,13 +263,49 @@ def _do_download(url: str, format_id: str):
     rc = proc.wait()
     with _download_lock:
         _download_proc = None
+    return rc, last_error
 
+
+def _do_download(url: str, format_id: str):
+    """Run download; on failure auto-update yt-dlp (the usual cause of the breakage)
+    and retry once, so the extension heals itself instead of erroring."""
+    fid = format_id or "bv*+ba/b"
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    template = os.path.join(OUTPUT_DIR, "%(title)s.%(ext)s")
+
+    rc, last_error = _run_one_download(fid, template, url)
+    if rc is None:
+        return
     if rc == 0:
         send_message({"type": "done", "output_dir": OUTPUT_DIR})
-    elif rc == -signal.SIGINT or rc == 255:
+        return
+    if rc == -signal.SIGINT or rc == 255:
         send_message({"type": "canceled", "reason": "interrupted"})
+        return
+
+    message = f"Download failed (exit {rc})"
+    if last_error:
+        message += "\n" + last_error
+
+    if update_ytdlp_if_outdated():
+        log("yt-dlp updated to %s; retrying download once" % _current_ytdlp_version())
+        rc, last_error = _run_one_download(fid, template, url)
+        if rc is None:
+            return
+        if rc == 0:
+            send_message({"type": "done", "output_dir": OUTPUT_DIR})
+            return
+        if rc == -signal.SIGINT or rc == 255:
+            send_message({"type": "canceled", "reason": "interrupted"})
+            return
+        message = f"Download failed (exit {rc})"
+        if last_error:
+            message += "\n" + last_error
+        message += "\n(yt-dlp was auto-updated to %s)" % _current_ytdlp_version()
     else:
-        send_message({"type": "error", "message": f"Download failed (exit {rc})"})
+        message += "\nHint: stale yt-dlp causes most YouTube breakage - run ./scripts/update-ytdlp.sh"
+
+    send_message({"type": "error", "message": message})
 
 
 def handle_download(url: str, format_id: str):

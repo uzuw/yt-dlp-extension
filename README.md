@@ -1,6 +1,6 @@
 # ytdlp Downloader
 
-[![yt-dlp](https://img.shields.io/badge/yt--dlp-2026.07.04-blue?logo=youtube)](https://github.com/yt-dlp/yt-dlp)
+[![yt-dlp](https://img.shields.io/pypi/v/yt-dlp?logo=youtube)](https://github.com/yt-dlp/yt-dlp)
 
 A Chrome extension that detects the current tab URL, fetches available formats via **yt-dlp**, and downloads media directly to your machine. No cloud, no servers, no uploads.
 
@@ -66,6 +66,9 @@ A Chrome extension that detects the current tab URL, fetches available formats v
 # Linux / macOS
 python3 -m pip install -U yt-dlp
 
+# Arch Linux (PEP 668): user-level install
+python3 -m pip install --user --break-system-packages -U yt-dlp
+
 # Or with a package manager
 # brew install yt-dlp          # macOS
 # sudo apt install yt-dlp      # Ubuntu/Debian
@@ -75,13 +78,13 @@ Verify it works:
 
 ```bash
 yt-dlp --version
-# 2026.07.04
+# 2026.08.19 (or newer — YouTube breaks older releases!)
 ```
 
 ### 2. Clone and install the native host
 
 ```bash
-git clone https://github.com/YOUR_USER/ytdlp-extension.git
+git clone https://github.com/uzuw/yt-dlp-extension.git
 cd ytdlp-extension
 chmod +x install.sh
 ./install.sh
@@ -93,6 +96,32 @@ The script will:
 - Create the output directory `~/Downloads/ytdlp-extensions/`
 - Make the Python script executable
 - Verify yt-dlp is available
+
+## Keeping yt-dlp up to date
+
+YouTube periodically changes its API, which **breaks older yt-dlp releases** — downloads then fail
+mid-way with `HTTP Error 403: Forbidden` even though format detection still works. This is the #1
+cause of "Download failed (exit 1)".
+
+The native host now **auto-heals**: when a download fails it checks PyPI, upgrades yt-dlp if a newer
+release exists, and retries the download once (at most once per 6 hours). Future breakage should fix
+itself on the next attempt.
+
+You can also update manually or on a schedule:
+
+```bash
+# Manual update
+./scripts/update-ytdlp.sh
+
+# Recommended on desktop Linux: weekly systemd user timer
+./scripts/update-ytdlp.sh --install-timer
+```
+
+On systems without user systemd (WSL, macOS), schedule it yourself, e.g. cron:
+
+```cron
+0 3 * * 1 /path/to/ytdlp-extension/scripts/update-ytdlp.sh --quiet
+```
 
 ### 3. Load the extension in Chrome
 
@@ -137,6 +166,7 @@ The extension icon should appear in your toolbar.
 | "yt-dlp not found" | Install yt-dlp and ensure it's on your PATH. Run `yt-dlp --version` |
 | Popup shows no formats | Make sure the tab URL starts with `http://` or `https://` |
 | Extension icon is grayed out | The page may not be supported by yt-dlp, or the URL is a chrome:// page |
+| Download fails with "Download failed (exit 1)" | Usually an outdated yt-dlp (YouTube breaks old releases). The host auto-updates and retries; if it still fails, run `./scripts/update-ytdlp.sh` |
 | Download starts but stalls | Check the service worker console (`chrome://extensions` → service worker) |
 
 ### Debugging
