@@ -213,7 +213,7 @@ function updateProgress(pct, speed, eta) {
 
 // ---- main init ----
 
-async function init() {
+async function init(retry = false) {
   // Listen for streaming progress from service worker
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.source !== "nmh") return;
@@ -277,6 +277,10 @@ async function init() {
       if (dlState.percent > 0) updateProgress(dlState.percent, dlState.speed, dlState.eta);
       return;
     }
+    if (dlState?.type === "error" && !retry) {
+      showError(dlState.message || "Download failed");
+      return;
+    }
   } catch (_) {}
 
   // Show loading, fetch formats
@@ -333,7 +337,7 @@ DOM.openBtn.addEventListener("click", () => {
 
 DOM.retryBtn.addEventListener("click", () => {
   showView(DOM.loading);
-  init();
+  init(true);
 });
 
 // Start

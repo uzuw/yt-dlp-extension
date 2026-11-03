@@ -5,7 +5,6 @@ Protocol: 4-byte LE length prefix + JSON message on stdin, same on stdout.
 Commands: list_formats, download, cancel. All logging to stderr.
 """
 import json, os, re, struct, subprocess, sys, signal, shutil, threading, time
-import urllib.request
 
 OUTPUT_DIR = os.path.expanduser("~/Downloads/ytdlp-extensions")
 YTDLP_BIN = "yt-dlp"
@@ -38,10 +37,27 @@ def send_message(data: dict):
 
 
 def _find_ytdlp() -> str:
-    for c in [YTDLP_BIN, os.path.expanduser("~/.local/bin/yt-dlp")]:
-        if shutil.which(c):
-            return c
+    for c in [os.path.expanduser("~/.local/bin/yt-dlp"), YTDLP_BIN]:
+        path = shutil.which(c)
+        if path:
+            return path
     raise FileNotFoundError("yt-dlp not found on PATH")
+
+
+def _ytdlp_command() -> list[str]:
+    command = [_find_ytdlp()]
+    for runtime, candidate in [("deno", "deno"), ("deno", os.path.expanduser("~/.deno/bin/deno")),
+                               ("node", "node")]:
+        path = shutil.which(candidate)
+        if path:
+            command += ["--js-runtimes", f"{runtime}:{path}"]
+            break
+    return command
+
+
+def _failure_message(message: str) -> str:
+    return (message + "\nUpdate yt-dlp and its YouTube dependencies: run ./scripts/update-ytdlp.sh."
+            "\nIf it still fails, update the extension and reload it in chrome://extensions.")
 
 
 # ---- yt-dlp self-update (YouTube routinely breaks older releases) ----
@@ -58,19 +74,6 @@ def _current_ytdlp_version() -> str:
         return (out.stdout or "").strip().splitlines()[0] if out.returncode == 0 else "0.0"
     except Exception:
         return "0.0"
-
-
-def _latest_ytdlp_version() -> str:
-    req = urllib.request.Request(
-        "https://pypi.org/pypi/yt-dlp/json",
-        headers={"User-Agent": "ytdlp-extension/" + _current_ytdlp_version()},
-    )
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        return json.load(resp)["info"]["version"]
-
-
-def _version_tuple(v: str):
-    return tuple(int(x) for x in re.findall(r"\d+", v))
 
 
 def _update_cooldown_ok() -> bool:
@@ -91,33 +94,24 @@ def _mark_update_attempt():
         log("Could not persist update state: %s" % e)
 
 
-def update_ytdlp_if_outdated(force: bool = False) -> bool:
-    """Upgrade yt-dlp when a newer release exists. Cooldown-gated. Returns True
-    only if a newer version was actually installed."""
+def update_ytdlp(force: bool = False) -> bool:
+    """Refresh yt-dlp and its recommended dependencies, then allow one retry."""
     with _update_lock:
         if not force and not _update_cooldown_ok():
             return False
         _mark_update_attempt()
-        try:
-            latest = _latest_ytdlp_version()
-        except Exception as e:
-            log("Latest-version check failed: %s" % e)
-            return False
-        current = _current_ytdlp_version()
-        if _version_tuple(current) >= _version_tuple(latest):
-            return False
-        log("Updating yt-dlp %s -> %s" % (current, latest))
+        log("Updating yt-dlp and its recommended dependencies")
         try:
             result = subprocess.run(
                 [sys.executable, "-m", "pip", "install", "--user", "--break-system-packages",
-                 "--no-cache-dir", "-q", "-U", "yt-dlp"],
+                 "--no-cache-dir", "-q", "-U", "yt-dlp[default]"],
                 capture_output=True, text=True, timeout=240,
             )
             log("pip exit=%s %s" % (result.returncode, (result.stderr or "").strip()[-200:]))
         except Exception as e:
             log("yt-dlp update failed: %s" % e)
             return False
-        return result.returncode == 0 and _version_tuple(_current_ytdlp_version()) >= _version_tuple(latest)
+        return result.returncode == 0
 
 
 def handle_list_formats(url: str):
@@ -128,10 +122,13 @@ def handle_list_formats(url: str):
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
     try:
-        result = subprocess.run(
-            [_find_ytdlp(), "--no-warnings", "-J", url],
-            capture_output=True, text=True, timeout=120, env=env,
-        )
+        for attempt in range(2):
+            result = subprocess.run(
+                _ytdlp_command() + ["-J", url],
+                capture_output=True, text=True, timeout=120, env=env,
+            )
+            if result.returncode == 0 or attempt == 1 or not update_ytdlp():
+                break
     except FileNotFoundError as e:
         send_message({"type": "error", "message": str(e)})
         return
@@ -140,10 +137,9 @@ def handle_list_formats(url: str):
         return
 
     if result.returncode != 0:
-        msg = (result.stderr or result.stdout or "").strip()[:2000]
+        msg = (result.stderr or result.stdout or "").strip()[-2000:]
         msg = msg or f"Exit code {result.returncode}"
-        msg += "\nHint: stale yt-dlp breaks extraction too - run ./scripts/update-ytdlp.sh"
-        send_message({"type": "error", "message": msg})
+        send_message({"type": "error", "message": _failure_message(msg)})
         return
 
     try:
@@ -218,7 +214,7 @@ def _run_one_download(fid: str, template: str, url: str):
 
     try:
         proc = subprocess.Popen(
-            [_find_ytdlp(), "--no-warnings", "-f", fid, "-o", template, "--newline", "--no-colors", url],
+            _ytdlp_command() + ["-f", fid, "-o", template, "--newline", "--no-colors", url],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, bufsize=1, env=env,
         )
@@ -254,8 +250,6 @@ def _run_one_download(fid: str, template: str, url: str):
                 if e:
                     eta = e.group(1)
                 send_message({"type": "progress", "percent": pct, "speed": speed, "eta": eta})
-                if pct >= 100:
-                    break
                 continue
         if line.startswith("[") and "]" in line:
             send_message({"type": "status", "text": line.strip()})
@@ -267,8 +261,7 @@ def _run_one_download(fid: str, template: str, url: str):
 
 
 def _do_download(url: str, format_id: str):
-    """Run download; on failure auto-update yt-dlp (the usual cause of the breakage)
-    and retry once, so the extension heals itself instead of erroring."""
+    """Run download; on failure refresh yt-dlp and its dependencies, then retry once."""
     fid = format_id or "bv*+ba/b"
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     template = os.path.join(OUTPUT_DIR, "%(title)s.%(ext)s")
@@ -287,8 +280,10 @@ def _do_download(url: str, format_id: str):
     if last_error:
         message += "\n" + last_error
 
-    if update_ytdlp_if_outdated():
+    send_message({"type": "status", "text": "Checking for yt-dlp and YouTube dependency updates..."})
+    if update_ytdlp():
         log("yt-dlp updated to %s; retrying download once" % _current_ytdlp_version())
+        send_message({"type": "status", "text": "yt-dlp refreshed; retrying download..."})
         rc, last_error = _run_one_download(fid, template, url)
         if rc is None:
             return
@@ -302,17 +297,25 @@ def _do_download(url: str, format_id: str):
         if last_error:
             message += "\n" + last_error
         message += "\n(yt-dlp was auto-updated to %s)" % _current_ytdlp_version()
-    else:
-        message += "\nHint: stale yt-dlp causes most YouTube breakage - run ./scripts/update-ytdlp.sh"
-
-    send_message({"type": "error", "message": message})
+    send_message({"type": "error", "message": _failure_message(message)})
 
 
 def handle_download(url: str, format_id: str):
     """Start download in a background thread so main loop processes cancel."""
-    t = threading.Thread(target=_do_download, args=(url, format_id), daemon=True)
-    t.start()
+    if not url or not (url.startswith("http://") or url.startswith("https://")):
+        send_message({"type": "error", "message": "Invalid or missing URL"})
+        return
+
+    def run():
+        try:
+            _do_download(url, format_id)
+        except Exception as e:
+            log("Download error: %s" % e)
+            send_message({"type": "error", "message": _failure_message(str(e)[:2000])})
+
+    t = threading.Thread(target=run, daemon=True)
     send_message({"type": "download_started"})
+    t.start()
 
 
 def handle_cancel():

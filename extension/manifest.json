@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ytdlp Downloader",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu2XNmyKtWVgkCOBOk2QMG8iqGufgVVd3H961gZvIJqMLh4QWjTtWqZFVYwboj6/613g178zeZZOYznPd6kfgiARqb1cPpgAWC8Av75qH2Su+/jS+mxMJwYSKBDv7VJPHerm/YvlAlizIuInfluS+Vawbwb8LZeBtmTFm7rWkhwKhyVsqWy25W0NHR6gQhmXMgXz866A+EFgbY3hKd3unebwhLNiGCHv8Ajind+R4BbdKH28ezIS1R1MBk4TVmSa+EzEgIurxlxRNG63im9/PzmvwOV+8hWIHbmiQnibec7B6PhyOHTKNNleE1M2JZaObcUsTJdV0aTIT1e3rWv9u1wIDAQAB",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Detect current page URL and download media via yt-dlp. Supports YouTube, Facebook, Instagram, TikTok, and 1000+ sites.",
   "permissions": [
     "activeTab",

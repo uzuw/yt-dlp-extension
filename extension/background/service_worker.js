@@ -24,39 +24,47 @@ function sendNativeMessage(msg) {
   });
 }
 
+function handleNativeMessage(msg) {
+  if (msg.type === "progress") {
+    downloadState = { command: "download", ...msg, active: true };
+  } else if (["done", "canceled", "error", "download_started"].includes(msg.type)) {
+    downloadState = { ...msg, command: "download", active: msg.type === "download_started" };
+  }
+  chrome.runtime.sendMessage({ source: "nmh", ...msg }).catch(() => {
+    if (msg.type === "done") {
+      showNotification("ytdlp Downloader", "Download complete!");
+      downloadState = null;
+    } else if (msg.type === "error") {
+      showNotification("ytdlp Downloader", "Download failed: " + (msg.message || "").slice(0, 80));
+    }
+  });
+}
+
 function connectNative() {
   if (longLivedPort) {
     try { longLivedPort.disconnect(); } catch (_) {}
     longLivedPort = null;
   }
   log("Connecting native port");
-  longLivedPort = chrome.runtime.connectNative(NATIVE_HOST);
+  const port = chrome.runtime.connectNative(NATIVE_HOST);
+  longLivedPort = port;
+  port.onMessage.addListener(handleNativeMessage);
 
-  longLivedPort.onMessage.addListener((msg) => {
-    if (msg.type === "progress") {
-      downloadState = { command: "download", ...msg, active: true };
-    } else if (["done", "canceled", "error", "download_started"].includes(msg.type)) {
-      downloadState = { ...msg, command: "download", active: msg.type !== "done" && msg.type !== "canceled" && msg.type !== "error" };
-    }
-    chrome.runtime.sendMessage({ source: "nmh", ...msg }).catch(() => {
-      // ponytail: popup closed, alert via notification
-      if (msg.type === "done") {
-        showNotification("ytdlp Downloader", "Download complete!");
-        downloadState = null;
-      } else if (msg.type === "error") {
-        showNotification("ytdlp Downloader", "Download failed: " + (msg.message || "").slice(0, 80));
-        downloadState = null;
-      }
-    });
-  });
-
-  longLivedPort.onDisconnect.addListener(() => {
+  port.onDisconnect.addListener(() => {
     const errMsg = chrome.runtime.lastError?.message;
+    if (longLivedPort !== port) return;
     if (errMsg && !errMsg.includes("disconnected")) {
       err("Port disconnect:", errMsg);
     }
     log("Native port disconnected");
     longLivedPort = null;
+    if (downloadState?.active) {
+      handleNativeMessage({
+        type: "error",
+        message: (errMsg || "Native host disconnected before the download finished.") +
+          "\nRun ./install.sh, then reload the extension in chrome://extensions and retry.",
+      });
+    }
   });
 }
 
@@ -97,13 +105,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.command === "list_formats") {
     sendNativeMessage({ command: "list_formats", url: msg.url })
       .then((resp) => sendResponse(resp))
-      .catch((e) => {
-        // Might need to connect port first try — retry once if first attempt fails
-        connectNative();
-        sendNativeMessage({ command: "list_formats", url: msg.url })
-          .then((resp) => sendResponse(resp))
-          .catch((e2) => sendResponse({ type: "error", message: e2.message }));
-      });
+      .catch((e) => sendResponse({ type: "error", message: e.message }));
     return true;
   }
 

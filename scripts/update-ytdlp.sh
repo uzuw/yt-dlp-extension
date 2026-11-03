@@ -32,7 +32,7 @@ version() {
 do_update() {
   local before after
   before="$(version)"
-  "$PY" -m pip install --user --break-system-packages --no-cache-dir -U yt-dlp >/dev/null
+  "$PY" -m pip install --user --break-system-packages --no-cache-dir -U 'yt-dlp[default]' >/dev/null
   after="$(version)"
   if [ "$QUIET" -eq 0 ]; then
     echo "yt-dlp: $before -> $after"

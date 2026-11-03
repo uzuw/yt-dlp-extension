@@ -57,6 +57,8 @@ A Chrome extension that detects the current tab URL, fetches available formats v
 | Chrome / Chromium | Manifest V3 compatible (Chrome 88+) |
 | Python | 3.8+ |
 | yt-dlp | 2023+ (install separately, see below) |
+| YouTube support | Current yt-dlp with its `default` dependencies, plus Deno 2.3+ or Node.js 22+ |
+| ffmpeg | Required for merging separate video and audio streams |
 
 ## Installation
 
@@ -64,10 +66,10 @@ A Chrome extension that detects the current tab URL, fetches available formats v
 
 ```bash
 # Linux / macOS
-python3 -m pip install -U yt-dlp
+python3 -m pip install -U 'yt-dlp[default]'
 
 # Arch Linux (PEP 668): user-level install
-python3 -m pip install --user --break-system-packages -U yt-dlp
+python3 -m pip install --user --break-system-packages -U 'yt-dlp[default]'
 
 # Or with a package manager
 # brew install yt-dlp          # macOS
@@ -78,8 +80,14 @@ Verify it works:
 
 ```bash
 yt-dlp --version
-# 2026.08.19 (or newer — YouTube breaks older releases!)
+# Use the current release — YouTube breaks older releases.
 ```
+
+For YouTube, also install **Deno 2.3+** or **Node.js 22+**. The host detects Deno
+(including `~/.deno/bin/deno`) or enables Node from PATH automatically. The
+`default` dependencies include the YouTube JavaScript challenge solver; a bare
+yt-dlp installation can omit it. See the [official YouTube setup guide](https://github.com/yt-dlp/yt-dlp/wiki/EJS).
+Install ffmpeg to merge video and audio when selecting **Best video + audio**.
 
 ### 2. Clone and install the native host
 
@@ -99,13 +107,14 @@ The script will:
 
 ## Keeping yt-dlp up to date
 
-YouTube periodically changes its API, which **breaks older yt-dlp releases** — downloads then fail
-mid-way with `HTTP Error 403: Forbidden` even though format detection still works. This is the #1
-cause of "Download failed (exit 1)".
+YouTube periodically changes its API, which can break older yt-dlp releases or
+challenge solvers. Format detection may still work while downloads fail with HTTP 403.
 
-The native host now **auto-heals**: when a download fails it checks PyPI, upgrades yt-dlp if a newer
-release exists, and retries the download once (at most once per 6 hours). Future breakage should fix
-itself on the next attempt.
+When format lookup or a download fails, the native host refreshes **yt-dlp and its
+recommended dependencies**, then retries once (at most one automatic refresh per
+6 hours). This can repair missing dependencies even when yt-dlp itself is current.
+If recovery fails, the extension shows the underlying error and update instructions.
+Downloads continue reading progress through both streams and ffmpeg merging.
 
 You can also update manually or on a schedule:
 
@@ -166,7 +175,8 @@ The extension icon should appear in your toolbar.
 | "yt-dlp not found" | Install yt-dlp and ensure it's on your PATH. Run `yt-dlp --version` |
 | Popup shows no formats | Make sure the tab URL starts with `http://` or `https://` |
 | Extension icon is grayed out | The page may not be supported by yt-dlp, or the URL is a chrome:// page |
-| Download fails with "Download failed (exit 1)" | Usually an outdated yt-dlp (YouTube breaks old releases). The host auto-updates and retries; if it still fails, run `./scripts/update-ytdlp.sh` |
+| Download fails with "Download failed (exit 1)" | Read the underlying error. The host refreshes yt-dlp and its dependencies and retries once; if it still fails, run `./scripts/update-ytdlp.sh`, update the extension, and reload it in `chrome://extensions` |
+| YouTube reports missing JS runtime or challenge solver | Install Deno 2.3+ or Node.js 22+, then run `./scripts/update-ytdlp.sh` |
 | Download starts but stalls | Check the service worker console (`chrome://extensions` → service worker) |
 
 ### Debugging

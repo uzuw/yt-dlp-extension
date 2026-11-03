@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.1.1] - 2026-11-04
+
+### Fixed
+- Keep reading yt-dlp output after a stream reaches 100%, so audio downloads,
+  merging, and postprocessing errors are handled without blocking the output pipe.
+- Update yt-dlp with its recommended YouTube challenge solver dependencies and
+  enable an available Deno or Node runtime for both format lookup and downloads.
+- Refresh dependencies and retry failed format lookups once, matching download recovery.
+- Prefer the user-installed yt-dlp that the updater maintains over an older system binary.
+- Show download worker crashes and native host disconnects as errors; keep failures
+  available when reopening the popup, with update instructions and a working Retry.
+- Avoid reconnecting the download port when a separate format lookup fails.
+
 ## [1.1.0] - 2026-09-04
 
 ### Added
