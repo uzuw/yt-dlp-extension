@@ -122,18 +122,18 @@ def handle_list_formats(url: str):
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
     try:
-        for attempt in range(2):
-            result = subprocess.run(
-                _ytdlp_command() + ["-J", url],
-                capture_output=True, text=True, timeout=120, env=env,
-            )
-            if result.returncode == 0 or attempt == 1 or not update_ytdlp():
-                break
+        result = subprocess.run(
+            _ytdlp_command() + ["--no-playlist", "--socket-timeout", "10",
+                                "--retries", "1", "--extractor-retries", "1", "-J", url],
+            capture_output=True, text=True, timeout=30, env=env,
+        )
     except FileNotFoundError as e:
         send_message({"type": "error", "message": str(e)})
         return
     except subprocess.TimeoutExpired:
-        send_message({"type": "error", "message": "Request timed out (120s)"})
+        send_message({"type": "error", "message":
+                      "Fetching formats timed out after 30 seconds. The site may be slow or require sign-in. "
+                      "Open a direct video link and retry, or run ./scripts/update-ytdlp.sh."})
         return
 
     if result.returncode != 0:
@@ -214,7 +214,7 @@ def _run_one_download(fid: str, template: str, url: str):
 
     try:
         proc = subprocess.Popen(
-            _ytdlp_command() + ["-f", fid, "-o", template, "--newline", "--no-colors", url],
+            _ytdlp_command() + ["--no-playlist", "-f", fid, "-o", template, "--newline", "--no-colors", url],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, bufsize=1, env=env,
         )

@@ -9,6 +9,17 @@ async function main() {
   let disconnected;
   let nativeMessage;
   let nativeCalls = 0;
+  let lookupMessage;
+  let lookupDisconnect;
+  let lookupRequest;
+  let timeout;
+  let lookupClosed = false;
+  const lookupPort = {
+    onMessage: { addListener: (fn) => { lookupMessage = fn; } },
+    onDisconnect: { addListener: (fn) => { lookupDisconnect = fn; } },
+    postMessage(msg) { lookupRequest = msg; },
+    disconnect() { lookupClosed = true; lookupDisconnect(); },
+  };
   const messages = [];
   const port = {
     onMessage: { addListener: (fn) => { nativeMessage = fn; } },
@@ -19,7 +30,7 @@ async function main() {
   const chrome = {
     runtime: {
       onMessage: { addListener: (fn) => { listener = fn; } },
-      connectNative: () => port,
+      connectNative: () => (++nativeCalls === 1 ? port : lookupPort),
       sendMessage: (msg) => { messages.push(msg); return Promise.reject(new Error("Popup closed")); },
       sendNativeMessage: (name, msg, cb) => {
         nativeCalls++;
@@ -33,14 +44,24 @@ async function main() {
   };
   vm.runInNewContext(fs.readFileSync(path.join(root, "extension/background/service_worker.js"), "utf8"), {
     chrome, console, self: { addEventListener() {} },
+    setTimeout(fn, ms) { assert.equal(ms, 35000); timeout = fn; return 1; },
+    clearTimeout() {},
   });
   const send = (msg) => new Promise((resolve) => listener(msg, {}, resolve));
 
   await send({ command: "download", url: "https://example.com/video" });
   assert.equal((await send({ command: "getDownloadState" })).active, true);
-  assert.equal((await send({ command: "list_formats", url: "https://example.com/other" })).type, "error");
-  assert.equal(nativeCalls, 1);
+  const lookup = send({ command: "list_formats", url: "https://example.com/other" });
+  assert.equal(lookupRequest.url, "https://example.com/other");
+  timeout();
+  assert.match((await lookup).message, /timed out/);
+  assert.equal(lookupClosed, true);
+  assert.equal(nativeCalls, 2);
   assert.equal((await send({ command: "getDownloadState" })).active, true);
+  lookupMessage({ type: "formats", formats: [] });
+  const successfulLookup = send({ command: "list_formats", url: "https://example.com/video" });
+  lookupMessage({ type: "formats", formats: [] });
+  assert.equal((await successfulLookup).type, "formats");
 
   nativeMessage({ type: "error", message: "ERROR: HTTP 403; update the extension" });
   await Promise.resolve();

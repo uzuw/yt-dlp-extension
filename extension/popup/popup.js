@@ -132,7 +132,7 @@ function renderFormats(formats, title, extractor) {
   if (groups.audio.length) appendGroup("Audio Only", groups.audio, true);
 
   if (!groups.combined.length && !groups.video.length && !groups.audio.length) {
-    DOM.formatList.innerHTML = '<div class="format-row" style="color:#888;cursor:default;justify-content:center">No formats available</div>';
+    DOM.formatList.innerHTML = '<div class="formats-empty">No formats available</div>';
   }
 
   // Preselect best format
@@ -143,10 +143,16 @@ function renderFormats(formats, title, extractor) {
     DOM.downloadBtn.disabled = false;
   }
 
-  function appendGroup(label, items, showTag) {
+  function appendGroup(label, items) {
+    const GROUP_ICONS = {
+      // ponytail: static labels only, innerHTML is safe here
+      "Video + Audio": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>',
+      "Video Only": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 3v18"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/></svg>',
+      "Audio Only": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+    };
     const header = document.createElement("div");
     header.className = "format-group-label";
-    header.textContent = label;
+    header.innerHTML = (GROUP_ICONS[label] || "") + "<span>" + label + "</span>";
     DOM.formatList.appendChild(header);
 
     const maxShow = 20;
@@ -180,8 +186,7 @@ function renderFormats(formats, title, extractor) {
 
     if (items.length > maxShow) {
       const more = document.createElement("div");
-      more.className = "format-detail";
-      more.style.cssText = "padding:6px 14px;color:#999;font-style:italic";
+      more.className = "formats-more";
       more.textContent = "+ " + (items.length - maxShow) + " more formats";
       DOM.formatList.appendChild(more);
     }

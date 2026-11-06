@@ -1,4 +1,0 @@
-ytdlp Downloader - Chrome extension + Python native host that downloads media from YouTube, Facebook, Instagram, TikTok, and 1000+ sites using yt-dlp. Detects the current tab URL, shows available formats grouped by quality/codec, and downloads with live progress and cancel support.
-
-
-

@@ -103,9 +103,31 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // List formats
   if (msg.command === "list_formats") {
-    sendNativeMessage({ command: "list_formats", url: msg.url })
-      .then((resp) => sendResponse(resp))
-      .catch((e) => sendResponse({ type: "error", message: e.message }));
+    let port;
+    let timer;
+    let finished = false;
+    const finish = (response) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      port?.disconnect();
+      sendResponse(response);
+    };
+    try {
+      port = chrome.runtime.connectNative(NATIVE_HOST);
+      port.onMessage.addListener(finish);
+      port.onDisconnect.addListener(() => {
+        const message = chrome.runtime.lastError?.message || "Native host disconnected while fetching formats.";
+        finish({ type: "error", message });
+      });
+      timer = setTimeout(() => finish({
+        type: "error",
+        message: "Fetching formats timed out. Open a direct video link and retry. If it keeps failing, run ./scripts/update-ytdlp.sh.",
+      }), 35000);
+      port.postMessage({ command: "list_formats", url: msg.url });
+    } catch (e) {
+      finish({ type: "error", message: e.message });
+    }
     return true;
   }
 

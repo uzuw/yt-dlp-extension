@@ -9,34 +9,52 @@
 <body>
   <div id="app">
     <!-- Header -->
-    <div id="header">
-      <span id="title">ytdlp Downloader</span>
-      <span id="site-badge" class="hidden"></span>
+    <header id="header">
+      <div id="brand">
+        <span id="logo" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+        </span>
+        <span id="title">ytdlp Downloader</span>
+        <span id="site-badge" class="hidden"></span>
+      </div>
       <span id="url-display"></span>
-    </div>
+    </header>
 
     <!-- Loading -->
     <div id="loading" class="hidden">
-      <div class="spinner"></div>
+      <div class="spinner" aria-hidden="true"></div>
       <span>Fetching available formats...</span>
     </div>
 
     <!-- Error -->
     <div id="error" class="hidden">
-      <div class="error-icon">!</div>
-      <div id="error-text"></div>
-      <button id="retry-btn" class="btn-link">Retry</button>
+      <span class="error-icon" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      </span>
+      <div class="error-body">
+        <div id="error-text"></div>
+        <button id="retry-btn" class="btn-ghost">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          Retry
+        </button>
+      </div>
     </div>
 
     <!-- Format list -->
     <div id="formats-panel" class="hidden">
-      <div id="format-list"></div>
-      <button id="download-btn" class="btn-primary" disabled>Download Selected</button>
+      <div class="section-label"><span>Select format</span></div>
+      <div id="format-list" role="radiogroup"></div>
+      <div class="panel-footer">
+        <button id="download-btn" class="btn-primary" disabled>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+          Download Selected
+        </button>
+      </div>
     </div>
 
     <!-- Download progress -->
     <div id="progress-panel" class="hidden">
-      <div class="section-label">Downloading...</div>
+      <div class="section-label"><span>Downloading</span></div>
       <div class="progress-bar-bg">
         <div id="progress-fill" class="progress-fill"></div>
       </div>
@@ -46,10 +64,25 @@
         <span id="progress-eta"></span>
       </div>
       <div id="progress-text">Starting...</div>
-      <button id="cancel-btn" class="btn-secondary">Cancel</button>
-      <button id="done-btn" class="btn-primary hidden">Done</button>
-      <button id="open-btn" class="btn-secondary hidden">Open Downloads Folder</button>
+      <button id="cancel-btn" class="btn-secondary">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        Cancel
+      </button>
+      <button id="done-btn" class="btn-primary hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Done
+      </button>
+      <button id="open-btn" class="btn-secondary hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+        Open Downloads Folder
+      </button>
     </div>
+
+    <footer id="footer" aria-hidden="true">
+      <span>Local only</span>
+      <span class="footer-dots"></span>
+      <span>No cloud</span>
+    </footer>
   </div>
   <script src="popup.js"></script>
 </body>

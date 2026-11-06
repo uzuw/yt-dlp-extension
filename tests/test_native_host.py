@@ -51,29 +51,33 @@ class NativeHostTests(unittest.TestCase):
         with patch.object(host.shutil, "which", side_effect=binaries.get):
             self.assertEqual(host._ytdlp_command(), [user_bin, "--js-runtimes", "node:/usr/bin/node"])
 
-    def test_format_lookup_recovers_after_dependency_refresh(self):
-        failed = subprocess.CompletedProcess([], 1, "", "ERROR: extraction failed")
+    def test_format_lookup_is_bounded_and_only_requests_selected_video(self):
         succeeded = subprocess.CompletedProcess([], 0, json.dumps({"title": "Video", "formats": []}), "")
         with patch.object(host, "_ytdlp_command", return_value=["yt-dlp"]), \
-             patch.object(host.subprocess, "run", side_effect=[failed, succeeded]) as run, \
-             patch.object(host, "update_ytdlp", return_value=True) as update:
+             patch.object(host.subprocess, "run", return_value=succeeded) as run:
             host.handle_list_formats(URL)
-        self.assertEqual(run.call_count, 2)
-        update.assert_called_once_with()
-        self.assertEqual([m["type"] for m in self.messages], ["formats"])
+        self.assertEqual(run.call_args.kwargs["timeout"], 30)
+        self.assertIn("--no-playlist", run.call_args.args[0])
+        self.assertIn("--socket-timeout", run.call_args.args[0])
+        self.assertEqual(self.messages[-1]["type"], "formats")
 
-    def test_format_lookup_retries_only_once_and_reports_actual_error(self):
+    def test_format_lookup_failure_never_waits_for_update(self):
         failed = subprocess.CompletedProcess([], 1, "", "ERROR: HTTP Error 403: Forbidden")
         with patch.object(host, "_ytdlp_command", return_value=["yt-dlp"]), \
              patch.object(host.subprocess, "run", return_value=failed) as run, \
-             patch.object(host, "update_ytdlp", return_value=True) as update:
+             patch.object(host, "update_ytdlp") as update:
             host.handle_list_formats(URL)
-        self.assertEqual(run.call_count, 2)
-        update.assert_called_once_with()
-        message = self.messages[-1]
-        self.assertEqual(message["type"], "error")
-        self.assertIn("HTTP Error 403", message["message"])
-        self.assertIn("update the extension", message["message"])
+        run.assert_called_once()
+        update.assert_not_called()
+        self.assertEqual(self.messages[-1]["type"], "error")
+        self.assertIn("HTTP Error 403", self.messages[-1]["message"])
+
+    def test_format_lookup_timeout_is_reported(self):
+        with patch.object(host, "_ytdlp_command", return_value=["yt-dlp"]), \
+             patch.object(host.subprocess, "run", side_effect=subprocess.TimeoutExpired("yt-dlp", 30)):
+            host.handle_list_formats(URL)
+        self.assertEqual(self.messages[-1]["type"], "error")
+        self.assertIn("30 seconds", self.messages[-1]["message"])
 
     def test_refresh_installs_recommended_dependencies_and_respects_cooldown(self):
         with patch.object(host, "_update_cooldown_ok", return_value=False), \

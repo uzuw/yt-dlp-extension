@@ -1,41 +1,26 @@
 # Changelog
 
-All notable changes to this project are documented in this file.
+## Unreleased
 
-## [1.1.1] - 2026-11-04
+- Limit format lookup to 30 seconds, with a separate host connection and a timeout fallback.
+- Avoid dependency updates during format lookup; select only the video on links with playlist parameters.
+- Remove the dotted popup strip, outdated screenshot, and generated cache; simplify documentation.
 
-### Fixed
-- Keep reading yt-dlp output after a stream reaches 100%, so audio downloads,
-  merging, and postprocessing errors are handled without blocking the output pipe.
-- Update yt-dlp with its recommended YouTube challenge solver dependencies and
-  enable an available Deno or Node runtime for both format lookup and downloads.
-- Refresh dependencies and retry failed format lookups once, matching download recovery.
-- Prefer the user-installed yt-dlp that the updater maintains over an older system binary.
-- Show download worker crashes and native host disconnects as errors; keep failures
-  available when reopening the popup, with update instructions and a working Retry.
-- Avoid reconnecting the download port when a separate format lookup fails.
+## 1.1.1 — 2026-11-04
 
-## [1.1.0] - 2026-09-04
+- Continue reading download output through audio downloads and merging.
+- Update yt-dlp with its YouTube solver dependencies and detect Deno or Node.
+- Prefer the user-installed yt-dlp maintained by the updater.
+- Retry failed format lookups after refreshing dependencies.
+- Show worker crashes and host disconnects, retain download errors, and keep Retry usable.
+- Keep format lookup failures from disconnecting active downloads.
 
-### Added
-- **Auto-heal**: when a download fails, the native host checks PyPI for a newer
-  yt-dlp release, auto-updates it, and retries the download once (at most once per
-  6 hours; cooldown persisted in `~/.cache/ytdlp-extension/update-state.json`).
-- `scripts/update-ytdlp.sh`: update yt-dlp manually, or install a weekly systemd
-  user timer with `--install-timer`.
-- Download failure messages now include the real yt-dlp `ERROR:` line plus an
-  update hint, instead of a bare "Download failed (exit 1)".
+## 1.1.0 — 2026-09-04
 
-### Fixed
-- Downloads failing with "Download failed (exit 1)". Stale yt-dlp releases were
-  rejected by YouTube's media CDN mid-download with `HTTP Error 403: Forbidden`
-  (YouTube change, Jul-Aug 2026): format detection still worked, but actual
-  downloads died. Resolved by updating yt-dlp to 2026.08.19+ (now automated).
+- Add automatic yt-dlp updates and one download retry, with a six-hour cooldown.
+- Add a manual update script and an optional weekly systemd timer.
+- Show yt-dlp errors and update instructions when downloads fail.
 
-### Changed
-- README: new "Keeping yt-dlp up to date" section, dynamic PyPI version badge,
-  Arch Linux (PEP 668) install notes, troubleshooting entry for download failures.
+## 1.0.0 — 2026-07-30
 
-## [1.0.0] - 2026-07-30
-- Initial release: detect the current tab URL, list available formats, download
-  media via a yt-dlp native messaging host (Chrome Extension, Manifest V3).
+- Initial release: format selection, local downloads, progress, cancellation, and notifications.
